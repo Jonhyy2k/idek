@@ -29,6 +29,9 @@
                         <a class="nav-link active" href="{{ url_for('asset_plotter_page') }}"><i class="fas fa-chart-area"></i> Asset Plotter</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link disabled" href="#"><i class="fas fa-chart-line"></i> Market (soon)</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link disabled" href="#"><i class="fas fa-newspaper"></i> News (soon)</a>
                     </li>
                 </ul>
@@ -136,7 +139,6 @@
                             <div class="mb-3">
                                 <label class="form-label">Event Markers (Optional)</label>
                                 
-                                <!-- Predefined Events Section -->
                                 <div class="mb-3">
                                     <h6 class="text-muted">Quick Add - Major Events:</h6>
                                     <div class="row">
@@ -213,11 +215,9 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Custom Events Section -->
                                 <h6 class="text-muted">Custom Events:</h6>
                                 <div id="events-container">
-                                    <!-- Events will be added here dynamically -->
-                                </div>
+                                    </div>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="add-event">
                                     <i class="fas fa-plus me-1"></i>Add Custom Event
                                 </button>
@@ -265,7 +265,7 @@
         </div>
     </div>
 
-    <footer class="footer mt-5">
+    <footer class="footer">
         <div class="container">
             <div class="row">
                 <div class="col-md-4 mb-4 mb-md-0">
@@ -283,11 +283,11 @@
                 </div>
                 <div class="col-md-4">
                     <h5>Disclaimer</h5>
-                    <p class="small">QuantPulse provides analysis for informational purposes only. It is not financial advice.</p>
+                    <p class="small">QuantPulse provides analysis for informational purposes only. It is not financial advice. Consult with a qualified professional before making investment decisions.</p>
                 </div>
             </div>
             <div class="text-center footer-bottom">
-                <p class="small mb-0">&copy; 2024 QuantPulse. All rights reserved.</p>
+                <p class="small mb-0">&copy; {{ now.year }} QuantPulse. All rights reserved.</p>
             </div>
         </div>
     </footer>
