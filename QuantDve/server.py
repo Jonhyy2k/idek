@@ -3,7 +3,7 @@ import sqlite3
 import json
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from main import perform_analysis_for_server as run_stock_analysis # Updated import
+from mainall import perform_analysis_for_server as run_stock_analysis # Updated import
 import requests
 import schedule
 import time
@@ -19,6 +19,7 @@ from datetime import datetime
 import os
 import json
 from Inputs_Cur import populate_valuation_model as run_inputs_cur_analysis # Rename for clarity
+from AssetPlotter import plot_assets_with_highlights, ASSET_MAP
 
 # ... rest of your Flask app code ...
 app = Flask(__name__)
@@ -109,6 +110,129 @@ def inputs_cur_page():
             return render_template('inputs_cur_form.html', error=f"An error occurred: {str(e)}", username=session.get('username'))
 
     return render_template('inputs_cur_form.html', username=session.get('username'))
+
+@app.route('/asset_plotter', methods=['GET', 'POST'])
+def asset_plotter_page():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        if not request.form.get('csrf_token') == session.get('csrf_token'):
+            return jsonify({'error': 'CSRF token validation failed'}), 400
+
+        try:
+            # Get form data
+            target_asset = request.form.get('target_asset', '').strip().upper()
+            related_assets_str = request.form.get('related_assets', '').strip()
+            start_date = request.form.get('start_date', '').strip()
+            end_date = request.form.get('end_date', '').strip()
+            ma_window = int(request.form.get('ma_window', 20))
+            average_related = 'average_related' in request.form
+
+            # Validation
+            if not target_asset:
+                return render_template('asset_plotter_form.html', error="Target asset is required.", username=session.get('username'))
+            
+            if not start_date or not end_date:
+                return render_template('asset_plotter_form.html', error="Start date and end date are required.", username=session.get('username'))
+
+            # Parse related assets
+            related_assets = []
+            if related_assets_str:
+                related_assets = [asset.strip().upper() for asset in related_assets_str.split(',') if asset.strip()]
+
+            # Map asset names to tickers if needed
+            target_asset = ASSET_MAP.get(target_asset.lower(), target_asset)
+            related_assets = [ASSET_MAP.get(asset.lower(), asset) for asset in related_assets]
+
+            # Parse events
+            events = {}
+            event_dates = request.form.getlist('event_dates[]')
+            event_descriptions = request.form.getlist('event_descriptions[]')
+            
+            for date, desc in zip(event_dates, event_descriptions):
+                if date and desc:
+                    events[date] = desc
+
+            # Create output directory
+            asset_plots_dir = os.path.join(app.static_folder, 'asset_plots')
+            os.makedirs(asset_plots_dir, exist_ok=True)
+
+            # Generate unique filename
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_filename = f"asset_plot_{target_asset}_{timestamp}.png"
+            output_path = os.path.join(asset_plots_dir, output_filename)
+
+            # Modify the AssetPlotter function to save to our specific location
+            import matplotlib.pyplot as plt
+            import matplotlib
+            matplotlib.use('Agg')
+
+            # Call the plotting function with our parameters
+            plot_assets_with_highlights(
+                target_asset=target_asset,
+                related_assets=related_assets,
+                start_date=start_date,
+                end_date=end_date,
+                events=events if events else None,
+                average_related=average_related,
+                ma_window=ma_window
+            )
+
+            # Move the generated file to our asset_plots directory
+            default_output = "bloomberg_style_asset_performance.png"
+            if os.path.exists(default_output):
+                import shutil
+                shutil.move(default_output, output_path)
+                
+                # Create URL for the plot
+                plot_url = url_for('static', filename=f'asset_plots/{output_filename}')
+                
+                # Save metadata to database
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                plot_data = {
+                    "type": "Asset_Plotter",
+                    "target_asset": target_asset,
+                    "related_assets": related_assets,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "ma_window": ma_window,
+                    "average_related": average_related,
+                    "events": events,
+                    "plot_file": f'asset_plots/{output_filename}',
+                    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+                
+                cursor.execute('''
+                    INSERT INTO analyses (user_id, symbol, analysis_data, timestamp, user_action)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (session['user_id'], target_asset, json.dumps(plot_data), 
+                      datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "Asset Plot Generated"))
+                conn.commit()
+                conn.close()
+
+                return render_template('asset_plotter_form.html',
+                                     success=f"Asset performance chart generated successfully!",
+                                     plot_url=plot_url,
+                                     username=session.get('username'))
+            else:
+                return render_template('asset_plotter_form.html', 
+                                     error="Failed to generate chart. Please try again.", 
+                                     username=session.get('username'))
+
+        except ValueError as e:
+            return render_template('asset_plotter_form.html', 
+                                 error=f"Invalid input: {str(e)}", 
+                                 username=session.get('username'))
+        except Exception as e:
+            app.logger.error(f"Error in asset plotter: {e}")
+            traceback.print_exc()
+            return render_template('asset_plotter_form.html', 
+                                 error=f"An error occurred: {str(e)}", 
+                                 username=session.get('username'))
+
+    return render_template('asset_plotter_form.html', username=session.get('username'))
 
 # --- Add this filter definition ---
 def format_datetime(value, format='%Y-%m-%d %H:%M'):
