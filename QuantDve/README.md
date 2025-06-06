@@ -1,1 +1,0 @@
-# QuantProject1
